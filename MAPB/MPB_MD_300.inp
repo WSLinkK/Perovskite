@@ -1,0 +1,246 @@
+&GLOBAL
+  ! the project name is made part of most output files... useful to keep order 
+  PROJECT MPB_MD_300
+  ! various runtypes (energy, geo_opt, etc.) available.
+  RUN_TYPE MD             
+  ! limit the runs to 5min
+  !  WALLTIME 1800
+  WALLTIME 47:59:00
+  ! reduce the amount of IO
+  IOLEVEL  LOW 
+&END GLOBAL
+
+&FORCE_EVAL
+  ! the electronic structure part of CP2K is named Quickstep
+  METHOD Quickstep
+  &DFT
+    ! basis sets and pseudopotential files
+    BASIS_SET_FILE_NAME BASIS_MOLOPT
+    POTENTIAL_FILE_NAME GTH_POTENTIALS            
+
+    ! Charge and multiplicity
+    CHARGE 0
+    MULTIPLICITY 1
+
+    &MGRID
+      NGRIDS 4
+      CUTOFF 450
+     REL_CUTOFF 70
+    &END MGRID
+
+    &QS
+       ! use the GPW method (i.e. pseudopotential based calculations with the Gaussian and Plane Waves scheme).
+       METHOD GPW 
+       ! default threshold for numerics ~ roughly numerical accuracy of the total energy per electron,
+       ! sets reasonable values for all other thresholds.
+       EPS_DEFAULT 1.0E-10 
+       ! used for MD, the method used to generate the initial guess.
+       EXTRAPOLATION ASPC 
+    &END
+
+    &POISSON
+       PERIODIC XYZ ! the default, gas phase systems should have 'NONE' and a wavelet solver
+    &END
+
+    &PRINT
+       ! at the end of the SCF procedure generate cube files of the density
+       &E_DENSITY_CUBE OFF
+       &END E_DENSITY_CUBE
+       ! compute eigenvalues and homo-lumo gap each 10nd MD step
+       &MO_CUBES
+          NLUMO 4
+          NHOMO 4
+          WRITE_CUBE .FALSE.
+          &EACH
+            MD 10
+          &END
+       &END
+    &END
+
+    ! use the OT METHOD for robust and efficient SCF, suitable for all non-metallic systems.
+    &SCF  
+      SCF_GUESS ATOMIC
+      EPS_SCF 1.0E-5
+      MAX_SCF 30
+      ADDED_MOS 20
+      CHOLESKY INVERSE
+      &SMEAR ON
+        METHOD FERMI_DIRAC
+        ELECTRONIC_TEMPERATURE [K] 50
+      &END SMEAR
+      &DIAGONALIZATION
+        ALGORITHM STANDARD
+      &END DIAGONALIZATION
+      &MIXING
+        METHOD BROYDEN_MIXING
+        ALPHA 0.4
+        BETA 0.6
+        NBROYDEN 8
+      &END MIXING                            
+!      &OT
+!        ! an accurate preconditioner suitable also for larger systems
+!        PRECONDITIONER FULL_SINGLE_INVERSE
+!        ! the most robust choice (DIIS might sometimes be faster, but not as stable).
+!        MINIMIZER DIIS
+!      &END OT
+      &OUTER_SCF ! repeat the inner SCF cycle 10 times
+        MAX_SCF 10
+        EPS_SCF 1.0E-5 ! must match the above
+      &END
+      ! do not store the wfn during MD
+      &PRINT
+        &RESTART OFF
+        &END
+      &END
+    &END SCF
+
+    ! specify the exchange and correlation treatment
+    &XC
+      ! use SCAN functional 
+      &XC_FUNCTIONAL 
+         &PBE
+	 &END PBE
+      &END XC_FUNCTIONAL
+    &END XC
+    
+    ! Calculate the maximally localized Wannier functions
+    &LOCALIZE
+      METHOD JACOBI
+      EPS_LOCALIZATION 1.0E-5
+      &PRINT
+        ! Output the Wannier functions as cube-files
+!        &WANNIER_CUBES
+!        &END
+	&WANNIER_SPREADS
+        &END
+	! Output the centers of all Wannier functions as xyz-file
+        &WANNIER_CENTERS
+           IONS+CENTERS .TRUE.
+        &END
+      &END
+    &END
+  &END DFT
+ 
+  ! description of the system
+  &SUBSYS
+    &KIND C
+      ELEMENT	C
+      BASIS_SET DZVP-MOLOPT-SR-GTH-q4
+      POTENTIAL GTH-PBE-q4
+    &END KIND
+    &KIND N
+      ELEMENT	N
+      BASIS_SET DZVP-MOLOPT-SR-GTH-q5
+      POTENTIAL GTH-PBE-q5
+    &END KIND
+    &KIND H
+      ELEMENT   H
+      BASIS_SET DZVP-MOLOPT-SR-GTH-q1
+      POTENTIAL GTH-PBE-q1
+    &END KIND
+    &KIND Pb
+      ELEMENT   Pb
+      BASIS_SET DZVP-MOLOPT-SR-GTH-q4
+      POTENTIAL GTH-PBE-q4
+    &END KIND
+    &KIND Br
+      ELEMENT   Br
+      BASIS_SET DZVP-MOLOPT-SR-GTH-q7
+      POTENTIAL GTH-PBE-q7
+    &END KIND
+    &CELL
+      A     5.920000000    0.000000000    0.000000000
+      B     0.000000000    5.920000000    0.000000000
+      C     0.000000000    0.000000000    5.920000000
+      MULTIPLE_UNIT_CELL 4 4 4
+    &END CELL
+    &COORD 
+      SCALED
+      C      0.896273231         0.999983558         0.988522590
+      N      0.142122942         0.999827671         0.032681854
+      H      0.866957623         0.999767382         0.805196467
+      H      0.822455478         0.152455461         0.064668910
+      H      0.822203129         0.847833083         0.065064906
+      H      0.221294106         0.142414053         0.965658803
+      H      0.221081827         0.856980313         0.965945652
+      H      0.180449255         0.999967913         0.205379189
+      Pb     0.475331800         0.500004384         0.477923432
+      Br     0.428777104         0.499876665         0.972691954
+      Br     0.433481915         0.000019556         0.512848289
+      Br     0.967552978         0.500172409         0.439205694
+    &END COORD
+    &TOPOLOGY
+     MULTIPLE_UNIT_CELL 4 4 4
+    &END TOPOLOGY
+  &END SUBSYS
+&END FORCE_EVAL
+
+! how to propagate the system, selection via RUN_TYPE in the &GLOBAL section
+&MOTION
+  &GEO_OPT
+    TYPE MINIMIZATION
+    MAX_DR    1.0E-03
+    MAX_FORCE 1.0E-03
+    RMS_DR    1.0E-03
+    RMS_FORCE 1.0E-03
+    MAX_ITER 200
+    OPTIMIZER CG
+    &CG
+      MAX_STEEP_STEPS  0
+      RESTART_LIMIT 9.0E-01
+    &END CG
+  &END GEO_OPT
+  &MD
+   ENSEMBLE NVT  ! sampling the canonical ensemble, accurate properties might need NVE
+   TEMPERATURE [K] 300
+   TIMESTEP [fs] 1.0
+   COMVEL_TOL 1.0E-8
+   STEPS 5000
+   TIME_START_VAL 0  !!! Change this later
+   &THERMOSTAT
+    TYPE CSVR
+    &CSVR
+     TIMECON 100
+    &END CSVR
+   &END THERMOSTAT
+  &END
+  &PRINT
+   &TRAJECTORY
+     &EACH
+       MD 1
+     &END EACH
+   &END TRAJECTORY
+   &VELOCITIES
+     &EACH
+       MD 1
+     &END EACH
+   &END VELOCITIES
+   &FORCES
+     &EACH
+       MD 1
+     &END EACH
+   &END FORCES
+
+   &STRESS
+     &EACH
+       MD 1
+     &END EACH
+   &END STRESS
+
+   &RESTART_HISTORY
+     &EACH
+       MD 5
+     &END EACH
+   &END RESTART_HISTORY
+   &RESTART
+     BACKUP_COPIES 3
+     &EACH
+       MD 1
+     &END EACH
+   &END RESTART
+  &END PRINT
+&END
+
+&EXT_RESTART
+  RESTART_FILE_NAME MPB_MD_300-1.restart
+&END
